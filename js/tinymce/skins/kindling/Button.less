@@ -115,3 +115,38 @@
 	border-bottom: 4px solid @btn-caret-color;
 	border-top: 0;
 }
+
+/* Custom Toolbar */
+.mce-toolbar {
+	.mce-btn {
+		position: relative;
+		text-shadow: none;
+		background: transparent;
+		border: 1px solid #fff;
+		.inline-block();
+		.box-shadow(none);
+
+		button {
+			padding: 4px 9px;
+		}
+
+		&:hover, &:focus, &.mce-active, &.mce-active:hover {
+			text-decoration: none;
+			background: #333;
+			border: 1px solid #fff;
+			.border-radius(3px);
+			.box-shadow(none);
+
+			.mce-ico {
+				color: white;
+				text-shadow: none;
+			}
+		}
+
+		&.mce-disabled, &.mce-disabled:hover {
+			cursor: default;
+			background-image: none;
+			.opacity(0.65);
+		}
+	}
+}

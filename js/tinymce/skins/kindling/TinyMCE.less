@@ -35,6 +35,9 @@ div.mce-fullscreen {
 .mce-edit-area {
 	background: #FFF;
 	filter: none;
+
+	// Seems to prevent occasional overflow issues.
+	overflow: hidden !important;
 }
 
 .mce-statusbar {

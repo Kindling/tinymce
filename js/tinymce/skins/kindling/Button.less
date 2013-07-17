@@ -119,18 +119,20 @@
 /* Custom Toolbar */
 .mce-toolbar {
 	.mce-btn {
+		.reset-gradient();
 		position: relative;
 		text-shadow: none;
-		background: transparent;
+		background: #fff;
 		border: 1px solid #fff;
 		.inline-block();
 		.box-shadow(none);
-
+		
 		button {
 			padding: 4px 9px;
 		}
 
 		&:hover, &:focus, &.mce-active, &.mce-active:hover {
+			.reset-gradient();
 			text-decoration: none;
 			background: #333;
 			border: 1px solid #fff;
@@ -144,6 +146,7 @@
 		}
 
 		&.mce-disabled, &.mce-disabled:hover {
+			.reset-gradient();
 			cursor: default;
 			background-image: none;
 			.opacity(0.65);

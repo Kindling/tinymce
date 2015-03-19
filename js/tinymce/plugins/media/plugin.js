@@ -17,10 +17,15 @@ tinymce.PluginManager.add('media', function(editor, url) {
 		{regex: /youtu\.be\/([\w\-.]+)/, type: 'iframe', w: 425, h: 350, url: '//www.youtube.com/embed/$1'},
 		{regex: /youtube\.com(.+)v=([^&]+)/, type: 'iframe', w: 425, h: 350, url: '//www.youtube.com/embed/$2'},
 		{regex: /vimeo\.com\/([0-9]+)/, type: 'iframe', w: 425, h: 350, url: '//player.vimeo.com/video/$1?title=0&byline=0&portrait=0&color=8dc7dc'},
+		{regex: /vimeo\.com\/(.*)\/([0-9]+)/, type: "iframe", w: 425, h: 350, url: "//player.vimeo.com/video/$2?title=0&amp;byline=0"},
 		{regex: /maps\.google\.([a-z]{2,3})\/maps\/(.+)msid=(.+)/, type: 'iframe', w: 425, h: 350, url: '//maps.google.com/maps/ms?msid=$2&output=embed"'}
 	];
 
+	var embedChange = (tinymce.Env.ie && tinymce.Env.ie <= 8) ? 'onChange' : 'onInput';
+
 	function guessMime(url) {
+		url = url.toLowerCase();
+
 		if (url.indexOf('.mp3') != -1) {
 			return 'audio/mpeg';
 		}
@@ -62,8 +67,21 @@ tinymce.PluginManager.add('media', function(editor, url) {
 
 	function showDialog() {
 		var win, width, height, data;
+
 		var generalFormItems = [
-			{name: 'source1', type: 'filepicker', filetype: 'media', size: 40, autofocus: true, label: 'Source'}
+			{
+				name: 'source1',
+				type: 'filepicker',
+				filetype: 'media',
+				size: 40,
+				autofocus: true,
+				label: 'Source',
+				onchange: function(e) {
+					tinymce.each(e.meta, function(value, key) {
+						win.find('#' + key).value(value);
+					});
+				}
+			}
 		];
 
 		function recalcSize(e) {
@@ -78,10 +96,16 @@ tinymce.PluginManager.add('media', function(editor, url) {
 			if (win.find('#constrain')[0].checked() && width && height && newWidth && newHeight) {
 				if (e.control == widthCtrl) {
 					newHeight = Math.round((newWidth / width) * newHeight);
-					heightCtrl.value(newHeight);
+
+					if (!isNaN(newHeight)) {
+						heightCtrl.value(newHeight);
+					}
 				} else {
 					newWidth = Math.round((newHeight / height) * newWidth);
-					widthCtrl.value(newWidth);
+
+					if (!isNaN(newWidth)) {
+						widthCtrl.value(newWidth);
+					}
 				}
 			}
 
@@ -105,9 +129,9 @@ tinymce.PluginManager.add('media', function(editor, url) {
 				align: 'center',
 				spacing: 5,
 				items: [
-					{name: 'width', type: 'textbox', maxLength: 3, size: 3, onchange: recalcSize},
+					{name: 'width', type: 'textbox', maxLength: 5, size: 3, onchange: recalcSize, ariaLabel: 'Width'},
 					{type: 'label', text: 'x'},
-					{name: 'height', type: 'textbox', maxLength: 3, size: 3, onchange: recalcSize},
+					{name: 'height', type: 'textbox', maxLength: 5, size: 3, onchange: recalcSize, ariaLabel: 'Height'},
 					{name: 'constrain', type: 'checkbox', checked: true, text: 'Constrain proportions'}
 				]
 			});
@@ -116,6 +140,23 @@ tinymce.PluginManager.add('media', function(editor, url) {
 		data = getData(editor.selection.getNode());
 		width = data.width;
 		height = data.height;
+
+		var embedTextBox = {
+			id: 'mcemediasource',
+			type: 'textbox',
+			flex: 1,
+			name: 'embed',
+			value: getSource(),
+			multiline: true,
+			label: 'Source'
+		};
+
+		function updateValueOnChange() {
+			data = htmlToData(this.value());
+			this.parent().parent().fromJSON(data);
+		}
+
+		embedTextBox[embedChange] = updateValueOnChange;
 
 		win = editor.windowManager.open({
 			title: 'Insert/edit video',
@@ -149,15 +190,7 @@ tinymce.PluginManager.add('media', function(editor, url) {
 							text: 'Paste your embed code below:',
 							forId: 'mcemediasource'
 						},
-						{
-							id: 'mcemediasource',
-							type: 'textbox',
-							flex: 1,
-							name: 'embed',
-							value: getSource(),
-							multiline: true,
-							label: 'Source'
-						}
+						embedTextBox
 					]
 				}
 			],
@@ -356,6 +389,56 @@ tinymce.PluginManager.add('media', function(editor, url) {
 		return {};
 	}
 
+	function sanitize(html) {
+		if (editor.settings.media_filter_html === false) {
+			return html;
+		}
+
+		var writer = new tinymce.html.Writer();
+
+		new tinymce.html.SaxParser({
+			validate: false,
+			allow_conditional_comments: false,
+			special: 'script,noscript',
+
+			comment: function(text) {
+				writer.comment(text);
+			},
+
+			cdata: function(text) {
+				writer.cdata(text);
+			},
+
+			text: function(text, raw) {
+				writer.text(text, raw);
+			},
+
+			start: function(name, attrs, empty) {
+				if (name == 'script' || name == 'noscript') {
+					return;
+				}
+
+				for (var i = 0; i < attrs.length; i++) {
+					if (attrs[i].name.indexOf('on') === 0) {
+						return;
+					}
+				}
+
+				writer.start(name, attrs, empty);
+			},
+
+			end: function(name) {
+				if (name == 'script' || name == 'noscript') {
+					return;
+				}
+
+				writer.end(name);
+			}
+		}, new tinymce.html.Schema({})).parse(html);
+
+		return writer.getContent();
+	}
+
 	function updateHtml(html, data, updateAll) {
 		var writer = new tinymce.html.Writer();
 		var sourceCount = 0, hasImage;
@@ -420,7 +503,7 @@ tinymce.PluginManager.add('media', function(editor, url) {
 							width: data.width,
 							height: data.height
 						});
-					break;
+						break;
 				}
 
 				if (updateAll) {
@@ -436,13 +519,13 @@ tinymce.PluginManager.add('media', function(editor, url) {
 									src: ""
 								});
 							}
-						break;
+							break;
 
 						case "iframe":
 							setAttributes(attrs, {
 								src: data.source1
 							});
-						break;
+							break;
 
 						case "source":
 							sourceCount++;
@@ -457,7 +540,7 @@ tinymce.PluginManager.add('media', function(editor, url) {
 									return;
 								}
 							}
-						break;
+							break;
 
 						case "img":
 							if (!data.poster) {
@@ -523,7 +606,7 @@ tinymce.PluginManager.add('media', function(editor, url) {
 		// Make sure that any messy HTML is retained inside these
 		var specialElements = editor.schema.getSpecialElements();
 		tinymce.each('video audio iframe object'.split(' '), function(name) {
-			specialElements[name] = new RegExp('<\/' + name + '[^>]*>','gi');
+			specialElements[name] = new RegExp('<\/' + name + '[^>]*>', 'gi');
 		});
 
 		// Allow elements
@@ -649,7 +732,7 @@ tinymce.PluginManager.add('media', function(editor, url) {
 				if (innerHtml) {
 					innerNode = new tinymce.html.Node('#text', 3);
 					innerNode.raw = true;
-					innerNode.value = unescape(innerHtml);
+					innerNode.value = sanitize(unescape(innerHtml));
 					realElm.append(innerNode);
 				}
 
@@ -691,7 +774,7 @@ tinymce.PluginManager.add('media', function(editor, url) {
 
 	editor.addMenuItem('media', {
 		icon: 'media',
-		text: 'Insert video',
+		text: 'Insert/edit video',
 		onclick: showDialog,
 		context: 'insert',
 		prependToContext: true

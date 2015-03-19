@@ -43,7 +43,7 @@ module("tinymce.Editor", {
 	},
 
 	teardown: function() {
-		Utils.unpatch(editor.getDoc()); 
+		Utils.unpatch(editor.getDoc());
 		inlineEditor.show();
 		editor.show();
 	}
@@ -169,7 +169,6 @@ test('WebKit Serialization range bug', function() {
 	}
 });
 
-
 test('editor_methods - getParam', function() {
 	expect(5);
 
@@ -214,6 +213,14 @@ test('setContent', function() {
 	equal(count, 0);
 });
 
+test('setContent with comment bug #4409', function() {
+	editor.setContent('<!-- x --><br>');
+	editor.settings.disable_nodechange = false;
+	editor.nodeChanged();
+	editor.settings.disable_nodechange = true;
+	equal(editor.getContent(), "<!-- x --><p>\u00a0</p>");
+});
+
 test('custom elements', function() {
 	editor.setContent('<custom1>c1</custom1><custom2>c1</custom2>');
 	equal(editor.getContent(), '<custom1>c1</custom1><p><custom2>c1</custom2></p>');
@@ -221,7 +228,7 @@ test('custom elements', function() {
 
 test('Store/restore tabindex', function() {
 	editor.setContent('<span tabindex="42">abc</span>');
-	equal(editor.getContent({format:'raw'}).toLowerCase(), '<p><span data-mce-tabindex="42">abc</span></p>');
+	equal(editor.getContent({format: 'raw'}).toLowerCase(), '<p><span data-mce-tabindex="42">abc</span></p>');
 	equal(editor.getContent(), '<p><span tabindex="42">abc</span></p>');
 });
 
@@ -324,10 +331,10 @@ asyncTest('remove editor', function() {
 });
 
 test('insertContent', function() {
-	editor.setContent('<p>a</p>');
+	editor.setContent('<p>ab</p>');
 	Utils.setSelection('p', 1);
-	editor.insertContent('b');
-	equal(editor.getContent(), '<p>ab</p>');
+	editor.insertContent('c');
+	equal(editor.getContent(), '<p>acb</p>');
 });
 
 test('insertContent merge', function() {
@@ -349,4 +356,66 @@ test('execCommand return values for native commands', function() {
 
 	strictEqual(editor.execCommand("ExistingCommand"), true, "Return value for an editor handled command");
 	strictEqual(lastCmd, "ExistingCommand");
+});
+
+test('addCommand', function() {
+	var scope = {}, lastScope, lastArgs;
+
+	function callback() {
+		lastScope = this;
+		lastArgs = arguments;
+	}
+
+	editor.addCommand("CustomCommand1", callback, scope);
+	editor.addCommand("CustomCommand2", callback);
+
+	editor.execCommand("CustomCommand1", false, "value", {extra: true});
+	strictEqual(lastArgs[0], false);
+	strictEqual(lastArgs[1], "value");
+	ok(lastScope === scope);
+
+	editor.execCommand("CustomCommand2");
+	equal(typeof lastArgs[0], "undefined");
+	equal(typeof lastArgs[1], "undefined");
+	ok(lastScope === editor);
+});
+
+test('addQueryStateHandler', function() {
+	var scope = {}, lastScope, currentState;
+
+	function callback() {
+		lastScope = this;
+		return currentState;
+	}
+
+	editor.addQueryStateHandler("CustomCommand1", callback, scope);
+	editor.addQueryStateHandler("CustomCommand2", callback);
+
+	currentState = false;
+	ok(!editor.queryCommandState("CustomCommand1"));
+	ok(lastScope === scope, "Scope is not custom scope");
+
+	currentState = true;
+	ok(editor.queryCommandState("CustomCommand2"));
+	ok(lastScope === editor, "Scope is not editor");
+});
+
+test('addQueryValueHandler', function() {
+	var scope = {}, lastScope, currentValue;
+
+	function callback() {
+		lastScope = this;
+		return currentValue;
+	}
+
+	editor.addQueryValueHandler("CustomCommand1", callback, scope);
+	editor.addQueryValueHandler("CustomCommand2", callback);
+
+	currentValue = "a";
+	equal(editor.queryCommandValue("CustomCommand1"), "a");
+	ok(lastScope === scope, "Scope is not custom scope");
+
+	currentValue = "b";
+	ok(editor.queryCommandValue("CustomCommand2"), "b");
+	ok(lastScope === editor, "Scope is not editor");
 });

@@ -15,14 +15,14 @@ tinymce.PluginManager.add('link', function(editor) {
 		return function() {
 			var linkList = editor.settings.link_list;
 
-			if (typeof(linkList) == "string") {
+			if (typeof linkList == "string") {
 				tinymce.util.XHR.send({
 					url: linkList,
 					success: function(text) {
 						callback(tinymce.util.JSON.parse(text));
 					}
 				});
-			} else if (typeof(linkList) == "function") {
+			} else if (typeof linkList == "function") {
 				linkList(callback);
 			} else {
 				callback(linkList);
@@ -98,13 +98,25 @@ tinymce.PluginManager.add('link', function(editor) {
 			}
 		}
 
-		function urlChange() {
+		function updateText() {
+			if (!initialText && data.text.length === 0 && onlyText) {
+				this.parent().parent().find('#text')[0].value(this.value());
+			}
+		}
+
+		function urlChange(e) {
+			var meta = e.meta || {};
+
 			if (linkListCtrl) {
 				linkListCtrl.value(editor.convertURL(this.value(), 'href'));
 			}
 
-			if (!initialText && data.text.length === 0 && onlyText) {
-				this.parent().parent().find('#text')[0].value(this.value());
+			tinymce.each(e.meta, function(value, key) {
+				win.find('#' + key).value(value);
+			});
+
+			if (!meta.text) {
+				updateText.call(this);
 			}
 		}
 
@@ -140,8 +152,8 @@ tinymce.PluginManager.add('link', function(editor) {
 		data.text = initialText = anchorElm ? (anchorElm.innerText || anchorElm.textContent) : selection.getContent({format: 'text'});
 		data.href = anchorElm ? dom.getAttrib(anchorElm, 'href') : '';
 
-		if ((value = dom.getAttrib(anchorElm, 'target'))) {
-			data.target = value;
+		if (anchorElm) {
+			data.target = dom.getAttrib(anchorElm, 'target');
 		} else if (editor.settings.default_link_target) {
 			data.target = editor.settings.default_link_target;
 		}
@@ -253,7 +265,7 @@ tinymce.PluginManager.add('link', function(editor) {
 					autofocus: true,
 					label: 'Url',
 					onchange: urlChange,
-					onkeyup: urlChange
+					onkeyup: updateText
 				},
 				textListCtrl,
 				linkTitleCtrl,
@@ -264,6 +276,7 @@ tinymce.PluginManager.add('link', function(editor) {
 				classListCtrl
 			],
 			onSubmit: function(e) {
+				/*eslint dot-notation: 0*/
 				var href;
 
 				data = tinymce.extend(data, e.data);
@@ -335,8 +348,9 @@ tinymce.PluginManager.add('link', function(editor) {
 					return;
 				}
 
-				// Is www. prefixed
-				if (/^\s*www\./i.test(href)) {
+				// Is not protocol prefixed
+				if ((editor.settings.link_assume_external_targets && !/^\w+:/i.test(href)) ||
+					(!editor.settings.link_assume_external_targets && /^\s*www\./i.test(href))) {
 					delayedConfirm(
 						'The URL you entered seems to be an external link. Do you want to add the required http:// prefix?',
 						function(state) {
@@ -359,7 +373,7 @@ tinymce.PluginManager.add('link', function(editor) {
 	editor.addButton('link', {
 		icon: 'link',
 		tooltip: 'Insert/edit link',
-		shortcut: 'Ctrl+K',
+		shortcut: 'Meta+K',
 		onclick: createLinkList(showDialog),
 		stateSelector: 'a[href]'
 	});
@@ -371,15 +385,15 @@ tinymce.PluginManager.add('link', function(editor) {
 		stateSelector: 'a[href]'
 	});
 
-	editor.addShortcut('Ctrl+K', '', createLinkList(showDialog));
+	editor.addShortcut('Meta+K', '', createLinkList(showDialog));
 	editor.addCommand('mceLink', createLinkList(showDialog));
 
 	this.showDialog = showDialog;
 
 	editor.addMenuItem('link', {
 		icon: 'link',
-		text: 'Insert link',
-		shortcut: 'Ctrl+K',
+		text: 'Insert/edit link',
+		shortcut: 'Meta+K',
 		onclick: createLinkList(showDialog),
 		stateSelector: 'a[href]',
 		context: 'insert',

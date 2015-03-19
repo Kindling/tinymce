@@ -224,7 +224,7 @@ test('getNonEmptyElements', function() {
 		"embed": {}, "param": {}, "meta": {}, "link": {}, "isindex": {},
 		"input": {}, "img": {}, "hr": {}, "frame": {}, "col": {}, "br": {},
 		"basefont": {}, "base": {}, "area": {}, "source" : {},
-		"td": {}, "th": {}, "iframe": {}, "video": {}, "audio": {}, "object": {}, "wbr" : {}, "track" : {},  "script" : {},
+		"td": {}, "th": {}, "iframe": {}, "video": {}, "audio": {}, "object": {}, "wbr" : {}, "track" : {},  "script" : {}
 	});
 });
 
@@ -455,6 +455,11 @@ test('validStyles', function() {
 		"a": [
 			"background",
 			"font-family"
+		],
+
+		"A": [
+			"background",
+			"font-family"
 		]
 	});
 });
@@ -493,6 +498,11 @@ test('invalidStyles', function() {
 		'a': {
 			'background': {},
 			'font-family': {}
+		},
+
+		'A': {
+			'background': {},
+			'font-family': {}
 		}
 	});
 });
@@ -529,6 +539,11 @@ test('validClasses', function() {
 		},
 
 		'a': {
+			'classC': {},
+			'classD': {}
+		},
+
+		'A': {
 			'classC': {},
 			'classD': {}
 		}

@@ -1,6 +1,21 @@
 TinyMCE - The JavaScript Rich Text editor
 ==========================================
 
+Kindling Instructions
+---------------------
+Main info: https://github.com/Kindling/kindlingapp/wiki/TinyMCE-Development
+
+### Syncing with original
+- git fetch upstream
+- git checkout master
+- git rebase upstream/master
+- git checkout kindling
+- git rebase master
+
+### Building for Kindling
+- ./scripts/frontend/import-tinymce
+
+
 Building TinyMCE
 -----------------
 Install [Node.js](https://nodejs.org/en/) on your system.

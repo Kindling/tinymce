@@ -1,0 +1,54 @@
+// CropRect
+
+.mce-croprect-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+.mce-croprect-handle {
+	position: absolute;
+	top: 0; left: 0;
+	width: 20px; height: 20px;
+	border: 2px solid white;
+}
+
+.mce-croprect-handle-nw {
+	border-width: 2px 0 0 2px;
+	margin: -2px 0 0 -2px;
+	cursor: nw-resize;
+	top: 100px; left: 100px;
+}
+
+.mce-croprect-handle-ne {
+	border-width: 2px 2px 0 0;
+	margin: -2px 0 0 -20px;
+	cursor: ne-resize;
+	top: 100px; left: 200px;
+}
+
+.mce-croprect-handle-sw {
+	border-width: 0 0 2px 2px;
+	margin: -20px 2px 0 -2px;
+	cursor: sw-resize;
+	top: 200px; left: 100px;
+}
+
+.mce-croprect-handle-se {
+	border-width: 0 2px 2px 0;
+	margin: -20px 0 0 -20px;
+	cursor: se-resize;
+	top: 200px; left: 200px;
+}
+
+.mce-croprect-handle-move {
+	position: absolute;
+	cursor: move;
+	border: 0;
+}
+
+.mce-croprect-block {
+	.opacity(0.65);
+	position: absolute;
+	background: black;
+}

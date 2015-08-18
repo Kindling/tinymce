@@ -13,7 +13,8 @@ Main info: https://github.com/Kindling/kindlingapp/wiki/TinyMCE-Development
 - git rebase master
 
 ### Building for Kindling
-- ./scripts/frontend/import-tinymce
+- cd to `kindlingdev/development/kindlingapp/scripts`
+- ./tinymce/import-tinymce
 
 
 Building TinyMCE

@@ -1,1 +1,1 @@
-window.tinymce.PluginManager.add('mention', (activeEditor) => {}
+window.tinymce.PluginManager.add('mention', function() {});

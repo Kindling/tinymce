@@ -13,17 +13,19 @@
 /**
  * This file includes fixes for various browser quirks it's made to make it easy to add/remove browser specific fixes.
  *
+ * @private
  * @class tinymce.util.Quirks
  */
 define("tinymce/util/Quirks", [
 	"tinymce/util/VK",
 	"tinymce/dom/RangeUtils",
 	"tinymce/dom/TreeWalker",
+	"tinymce/dom/NodePath",
 	"tinymce/html/Node",
 	"tinymce/html/Entities",
 	"tinymce/Env",
 	"tinymce/util/Tools"
-], function(VK, RangeUtils, TreeWalker, Node, Entities, Env, Tools) {
+], function(VK, RangeUtils, TreeWalker, NodePath, Node, Entities, Env, Tools) {
 	return function(editor) {
 		var each = Tools.each, $ = editor.$;
 		var BACKSPACE = VK.BACKSPACE, DELETE = VK.DELETE, dom = editor.dom, selection = editor.selection,
@@ -402,6 +404,111 @@ define("tinymce/util/Quirks", [
 				}
 			}
 
+			/**
+			 * This retains the formatting if the last character is to be deleted.
+			 *
+			 * Backspace on this: <p><b><i>a|</i></b></p> would become <p>|</p> in WebKit.
+			 * With this patch: <p><b><i>|<br></i></b></p>
+			 */
+			function handleLastBlockCharacterDelete(isForward, rng) {
+				var path, blockElm, newBlockElm, clonedBlockElm, sibling,
+					container, offset, br, currentFormatNodes;
+
+				function cloneTextBlockWithFormats(blockElm, node) {
+					currentFormatNodes = $(node).parents().filter(function(idx, node) {
+						return !!editor.schema.getTextInlineElements()[node.nodeName];
+					});
+
+					newBlockElm = blockElm.cloneNode(false);
+
+					currentFormatNodes = Tools.map(currentFormatNodes, function(formatNode) {
+						formatNode = formatNode.cloneNode(false);
+
+						if (newBlockElm.hasChildNodes()) {
+							formatNode.appendChild(newBlockElm.firstChild);
+							newBlockElm.appendChild(formatNode);
+						} else {
+							newBlockElm.appendChild(formatNode);
+						}
+
+						newBlockElm.appendChild(formatNode);
+
+						return formatNode;
+					});
+
+					if (currentFormatNodes.length) {
+						br = dom.create('br');
+						currentFormatNodes[0].appendChild(br);
+						dom.replace(newBlockElm, blockElm);
+
+						rng.setStartBefore(br);
+						rng.setEndBefore(br);
+						editor.selection.setRng(rng);
+
+						return br;
+					}
+
+					return null;
+				}
+
+				function isTextBlock(node) {
+					return node && editor.schema.getTextBlockElements()[node.tagName];
+				}
+
+				if (!rng.collapsed) {
+					return;
+				}
+
+				container = rng.startContainer;
+				offset = rng.startOffset;
+				blockElm = dom.getParent(container, dom.isBlock);
+				if (!isTextBlock(blockElm)) {
+					return;
+				}
+
+				if (container.nodeType == 1) {
+					container = container.childNodes[offset];
+					if (container && container.tagName != 'BR') {
+						return;
+					}
+
+					if (isForward) {
+						sibling = blockElm.nextSibling;
+					} else {
+						sibling = blockElm.previousSibling;
+					}
+
+					if (dom.isEmpty(blockElm) && isTextBlock(sibling) && dom.isEmpty(sibling)) {
+						if (cloneTextBlockWithFormats(blockElm, container)) {
+							dom.remove(sibling);
+							return true;
+						}
+					}
+				} else if (container.nodeType == 3) {
+					path = NodePath.create(blockElm, container);
+					clonedBlockElm = blockElm.cloneNode(true);
+					container = NodePath.resolve(clonedBlockElm, path);
+
+					if (isForward) {
+						if (offset >= container.data.length) {
+							return;
+						}
+
+						container.deleteData(offset, 1);
+					} else {
+						if (offset <= 0) {
+							return;
+						}
+
+						container.deleteData(offset - 1, 1);
+					}
+
+					if (dom.isEmpty(clonedBlockElm)) {
+						return cloneTextBlockWithFormats(blockElm, container);
+					}
+				}
+			}
+
 			function customDelete(isForward) {
 				var mutationObserver, rng, caretElement;
 
@@ -485,6 +592,16 @@ define("tinymce/util/Quirks", [
 
 				if (!isDefaultPrevented(e) && (isForward || e.keyCode == BACKSPACE)) {
 					var rng = editor.selection.getRng(), container = rng.startContainer, offset = rng.startOffset;
+
+					// Shift+Delete is cut
+					if (isForward && e.shiftKey) {
+						return;
+					}
+
+					if (handleLastBlockCharacterDelete(isForward, rng)) {
+						e.preventDefault();
+						return;
+					}
 
 					// Ignore non meta delete in the where there is text before/after the caret
 					if (!isMetaOrCtrl && rng.collapsed && container.nodeType == 3) {
@@ -1339,8 +1456,15 @@ define("tinymce/util/Quirks", [
 			if (!editor.inline) {
 				editor.contentStyles.push('body {min-height: 150px}');
 				editor.on('click', function(e) {
+					var rng;
+
 					if (e.target.nodeName == 'HTML') {
-						var rng;
+						// Edge seems to only need focus if we set the range
+						// the caret will become invisible and moved out of the iframe!!
+						if (Env.ie > 11) {
+							editor.getBody().focus();
+							return;
+						}
 
 						// Need to store away non collapsed ranges since the focus call will mess that up see #7382
 						rng = editor.selection.getRng();
@@ -1373,25 +1497,6 @@ define("tinymce/util/Quirks", [
 		 */
 		function disableAutoUrlDetect() {
 			setEditorCommandState("AutoUrlDetect", false);
-		}
-
-		/**
-		 * IE 11 has a fantastic bug where it will produce two trailing BR elements to iframe bodies when
-		 * the iframe is hidden by display: none on a parent container. The DOM is actually out of sync
-		 * with innerHTML in this case. It's like IE adds shadow DOM BR elements that appears on innerHTML
-		 * but not as the lastChild of the body. However is we add a BR element to the body then remove it
-		 * it doesn't seem to add these BR elements makes sence right?!
-		 *
-		 * Example of what happens: <body>text</body> becomes <body>text<br><br></body>
-		 */
-		function doubleTrailingBrElements() {
-			if (!editor.inline) {
-				editor.on('focus blur beforegetcontent', function() {
-					var br = editor.dom.create('br');
-					editor.getBody().appendChild(br);
-					br.parentNode.removeChild(br);
-				}, true);
-			}
 		}
 
 		/**
@@ -1567,7 +1672,6 @@ define("tinymce/util/Quirks", [
 
 		if (Env.ie >= 11) {
 			bodyHeight();
-			doubleTrailingBrElements();
 			disableBackspaceIntoATable();
 		}
 
